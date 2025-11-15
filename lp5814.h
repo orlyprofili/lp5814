@@ -55,7 +55,7 @@ typedef struct {
    8->0.4s, 9->0.45s, 10->0.5s, 11->1s, 12->2s, 13->4s, 14->6s, 15->8s       */
 uint8_t lp5814_seconds_to_code(float seconds);
 
-/* Init does not touch power. It enables CHIP_EN if requested. */
+/* Init copies the bus context and address; it does not enable the chip. */
 int lp5814_init(lp5814_t *dev, const lp5814_bus_t *bus, uint8_t i2c_addr7);
 
 /* Core commands */

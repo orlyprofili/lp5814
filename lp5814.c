@@ -46,7 +46,9 @@ static inline void delay_if(const lp5814_bus_t *b, uint32_t ms) { if (b->delay_m
 
 static int wr1(lp5814_t *dev, uint8_t reg, uint8_t val)
 {
+    if (!dev) return -1;
     const lp5814_bus_t *b = &dev->bus;
+    if (!b->write) return -1;
     lock_if(b);
     int rc = b->write(b->user, dev->addr, reg, &val, 1);
     unlock_if(b);
@@ -55,7 +57,9 @@ static int wr1(lp5814_t *dev, uint8_t reg, uint8_t val)
 
 static int rd1(lp5814_t *dev, uint8_t reg, uint8_t *val)
 {
+    if (!dev || !val) return -1;
     const lp5814_bus_t *b = &dev->bus;
+    if (!b->read) return -1;
     lock_if(b);
     int rc = b->read(b->user, dev->addr, reg, val, 1);
     unlock_if(b);
@@ -64,6 +68,7 @@ static int rd1(lp5814_t *dev, uint8_t reg, uint8_t *val)
 
 static int rmw(lp5814_t *dev, uint8_t reg, uint8_t mask, uint8_t value)
 {
+    if (!dev) return -1;
     uint8_t cur = 0;
     int rc = rd1(dev, reg, &cur);
     if (rc) return rc;
@@ -91,6 +96,7 @@ int lp5814_init(lp5814_t *dev, const lp5814_bus_t *bus, uint8_t i2c_addr7)
 
 int lp5814_chip_enable(lp5814_t *dev, bool enable)
 {
+    if (!dev) return -1;
     int rc = rmw(dev, REG_CHIP_EN, 0x01u, enable ? 0x01u : 0x00u);
     /* Datasheet suggests ~1 ms after power up before config; keep a small guard */
     if (!rc && enable) delay_if(&dev->bus, 1);
@@ -123,11 +129,12 @@ int lp5814_set_exp_and_mode(lp5814_t *dev, uint8_t exp_mask_4b, uint8_t auto_mas
 
 int lp5814_map_output_to_engine(lp5814_t *dev, lp5814_engine_t ch_for_out[4])
 {
+    if (!ch_for_out) return -1;
     uint8_t v = 0;
-    v |= (uint8_t)((ch_for_out[0] & 0x3) << 0);
-    v |= (uint8_t)((ch_for_out[1] & 0x3) << 2);
-    v |= (uint8_t)((ch_for_out[2] & 0x3) << 4);
-    v |= (uint8_t)((ch_for_out[3] & 0x3) << 6);
+    v |= (uint8_t)(((uint8_t)ch_for_out[0] & 0x3u) << 0);
+    v |= (uint8_t)(((uint8_t)ch_for_out[1] & 0x3u) << 2);
+    v |= (uint8_t)(((uint8_t)ch_for_out[2] & 0x3u) << 4);
+    v |= (uint8_t)(((uint8_t)ch_for_out[3] & 0x3u) << 6);
     return wr1(dev, REG_DEV_CONFIG4, v);
 }
 
@@ -218,7 +225,9 @@ int lp5814_engine_set_repeat(lp5814_t *dev, lp5814_engine_t eng, lp5814_engine_r
 
 static int write_seq(lp5814_t *dev, uint8_t start_reg, const uint8_t *data, size_t len)
 {
+    if (!dev || !data || !len) return -1;
     const lp5814_bus_t *b = &dev->bus;
+    if (!b->write) return -1;
     lock_if(b);
     int rc = b->write(b->user, dev->addr, start_reg, data, len);
     unlock_if(b);
@@ -227,11 +236,12 @@ static int write_seq(lp5814_t *dev, uint8_t start_reg, const uint8_t *data, size
 
 int lp5814_pattern_write(lp5814_t *dev, lp5814_pattern_t idx, const lp5814_pattern_cfg_t *cfg)
 {
-    if (!cfg) return -1;
+    if (!cfg || !dev) return -1;
+    if ((uint8_t)idx > (uint8_t)LP5814_PAT3) return -1;
     uint8_t base = (uint8_t)(REG_PAT0_BASE + (uint8_t)idx * REG_PAT_STRIDE);
     uint8_t buf[9];
     buf[0] = cfg->pause_time;
-    buf[1] = cfg->repeat;
+    buf[1] = (uint8_t)(cfg->repeat & 0x0Fu);
     buf[2] = cfg->pwm[0];
     buf[3] = cfg->pwm[1];
     buf[4] = cfg->pwm[2];
